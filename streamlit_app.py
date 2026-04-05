@@ -150,25 +150,37 @@ def merge_datasets(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
 
 
 def coerce_and_impute(df: pd.DataFrame) -> pd.DataFrame:
-	df = df.copy()
-	for col in df.columns:
-		if df[col].dtype == object:
-			with warnings.catch_warnings():
-				warnings.simplefilter("ignore")
-				coerced = pd.to_numeric(df[col], errors="ignore")
-				if pd.api.types.is_numeric_dtype(coerced):
-					df[col] = coerced
-	# impute
-	num_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-	cat_cols = [c for c in df.columns if c not in num_cols]
-	for c in num_cols:
-		if df[c].isna().any():
-			df[c] = df[c].fillna(df[c].median())
-	for c in cat_cols:
-		if df[c].isna().any():
-			mode = df[c].mode(dropna=True)
-			df[c] = df[c].fillna(mode.iloc[0] if not mode.empty else "Unknown")
-	return df
+    df = df.copy()
+
+    for col in df.columns:
+        if df[col].dtype == object:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+
+                # FIXED HERE ✅
+                coerced = pd.to_numeric(df[col], errors="coerce")
+
+                # Convert only if majority numeric
+                if coerced.notna().sum() > 0.7 * len(df):
+                    df[col] = coerced
+
+    # Separate numeric & categorical
+    num_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+    cat_cols = [c for c in df.columns if c not in num_cols]
+
+    # Fill numeric
+    for c in num_cols:
+        if df[c].isna().any():
+            df[c] = df[c].fillna(df[c].median())
+
+    # Fill categorical
+    for c in cat_cols:
+        if df[c].isna().any():
+            mode = df[c].mode(dropna=True)
+            df[c] = df[c].fillna(mode.iloc[0] if not mode.empty else "Unknown")
+
+    return df
+
 
 
 def _quantize_stress_from_numeric(vals: pd.Series) -> pd.Series:
